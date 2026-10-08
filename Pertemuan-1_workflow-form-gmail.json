@@ -1,0 +1,89 @@
+{
+  "name": "Form Pendaftaran Kelas - Email Konfirmasi Otomatis",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "pendaftaran-kelas",
+        "formTitle": "Form Pendaftaran Kelas",
+        "formDescription": "Silakan isi data diri Anda untuk mendaftar kelas.",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Nama",
+              "placeholder": "Masukkan nama lengkap",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Email",
+              "fieldType": "email",
+              "placeholder": "nama@email.com",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Kelas",
+              "fieldType": "dropdown",
+              "fieldOptions": {
+                "values": [
+                  { "option": "Kelas A" },
+                  { "option": "Kelas B" },
+                  { "option": "Kelas C" }
+                ]
+              },
+              "requiredField": true
+            }
+          ]
+        },
+        "responseMode": "onReceived",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a1b2c3d4-0001-4000-8000-000000000001",
+      "name": "Form Pendaftaran",
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [0, 0],
+      "webhookId": "7f3c2a10-5b9d-4e8a-9c11-2d4f6a8b0c01"
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.Email }}",
+        "subject": "=Konfirmasi Pendaftaran {{ $json.Kelas }} - {{ $json.Nama }}",
+        "emailType": "html",
+        "message": "=<div style='font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;'><div style='background-color: #4CAF50; color: #ffffff; padding: 20px; text-align: center;'><h2 style='margin: 0;'>Pendaftaran Berhasil</h2></div><div style='padding: 20px; color: #333333;'><h3>Halo {{ $json.Nama }},</h3><p>Terima kasih telah mendaftar. Berikut data pendaftaran Anda:</p><table style='border-collapse: collapse; width: 100%;'><tr><td style='padding: 8px; border: 1px solid #dddddd;'><b>Nama</b></td><td style='padding: 8px; border: 1px solid #dddddd;'>{{ $json.Nama }}</td></tr><tr><td style='padding: 8px; border: 1px solid #dddddd;'><b>Email</b></td><td style='padding: 8px; border: 1px solid #dddddd;'>{{ $json.Email }}</td></tr><tr><td style='padding: 8px; border: 1px solid #dddddd;'><b>Kelas</b></td><td style='padding: 8px; border: 1px solid #dddddd;'>{{ $json.Kelas }}</td></tr></table><p>Sampai jumpa di <b>{{ $json.Kelas }}</b>!</p><p>Salam hangat,<br>Panitia Pendaftaran</p></div></div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "a1b2c3d4-0002-4000-8000-000000000002",
+      "name": "Kirim Email Konfirmasi",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [300, 0],
+      "webhookId": "7f3c2a10-5b9d-4e8a-9c11-2d4f6a8b0c02",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Form Pendaftaran": {
+      "main": [
+        [
+          {
+            "node": "Kirim Email Konfirmasi",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
