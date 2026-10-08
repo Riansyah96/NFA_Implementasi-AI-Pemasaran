@@ -1,0 +1,381 @@
+{
+  "name": "Tugas 2 - Image Generator Polling to Telegram",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "145272aa-fb3c-4992-98fd-ffe4f3f8e5dc",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2896,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "b1",
+              "name": "prompt",
+              "value": "A cute orange cat astronaut floating in space, digital art, highly detailed",
+              "type": "string"
+            },
+            {
+              "id": "b2",
+              "name": "chat_id",
+              "value": "7391328305",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b56286ed-230a-4b1d-8603-dd2d255d49f8",
+      "name": "Input Prompt",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2672,
+        928
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.kie.ai/api/v1/jobs/createTask",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"google/nano-banana\",\n  \"input\": {\n    \"prompt\": {{ JSON.stringify($('Input Prompt').item.json.prompt) }},\n    \"output_format\": \"png\",\n    \"image_size\": \"1:1\"\n  }\n}",
+        "options": {}
+      },
+      "id": "a296e9e7-ba26-4e99-908d-68333f99075d",
+      "name": "Kirim Prompt (POST)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2448,
+        928
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "H7gvDzFfi942lvqw",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "id": "a640ea77-4412-4e8e-bf20-f10ea6672670",
+      "name": "Wait 10 Detik",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        -2224,
+        928
+      ],
+      "webhookId": "c1000000-0000-4000-8000-000000000004"
+    },
+    {
+      "parameters": {
+        "url": "https://api.kie.ai/api/v1/jobs/recordInfo",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "taskId",
+              "value": "={{ $('Kirim Prompt (POST)').item.json.data.taskId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f8a663cc-d9fb-49c4-9c61-f5e2bb033744",
+      "name": "Cek Status (GET)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -2000,
+        848
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "H7gvDzFfi942lvqw",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "d1",
+              "leftValue": "={{ $json.data.state }}",
+              "rightValue": "success",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "081cc9dc-1e4d-44b9-bfb7-b9da4c8b659b",
+      "name": "IF Status Success?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1776,
+        848
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e1",
+              "leftValue": "={{ $json.data.state }}",
+              "rightValue": "fail",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f0212f48-9eec-4eeb-b411-f8bd34a0cc33",
+      "name": "IF Status Gagal?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1552,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ 'Pembuatan gambar gagal: ' + ($json.data.failMsg || 'unknown error') }}"
+      },
+      "id": "37dbffeb-0acd-4af1-b0b9-9ef0394cf731",
+      "name": "Stop dan Error",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        -1328,
+        1024
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsing respons JSON dan ekstrak URL gambar yang valid\nconst data = $input.first().json.data || {};\nlet result = data.resultJson;\n\n// resultJson biasanya berupa string JSON, ubah menjadi objek\nif (typeof result === 'string') {\n  try {\n    result = JSON.parse(result);\n  } catch (e) {\n    throw new Error('Gagal parsing resultJson: ' + e.message);\n  }\n}\n\nconst urls = (result && Array.isArray(result.resultUrls)) ? result.resultUrls : [];\n\n// Validasi: hanya URL http/https yang valid\nconst validUrls = urls.filter(u => typeof u === 'string' && /^https?:\\/\\/\\S+$/i.test(u.trim())).map(u => u.trim());\n\nif (validUrls.length === 0) {\n  throw new Error('Tidak ada URL gambar yang valid pada hasil API');\n}\n\nreturn [\n  {\n    json: {\n      taskId: data.taskId,\n      imageUrl: validUrls[0],\n      allUrls: validUrls\n    }\n  }\n];"
+      },
+      "id": "2663c9fe-e1e1-4648-8df7-8f7280468db2",
+      "name": "Code Ekstrak URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1552,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.imageUrl }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "id": "45f60735-ab15-4b87-8084-48f6f57f2c9d",
+      "name": "Download Gambar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -1328,
+        800
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendPhoto",
+        "chatId": "={{ $('Input Prompt').item.json.chat_id }}",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "={{ 'Gambar selesai dibuat untuk prompt: ' + $('Input Prompt').item.json.prompt }}"
+        }
+      },
+      "id": "6ad0f829-57a2-4451-8af4-2ad9a61a3d40",
+      "name": "Kirim ke Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -1104,
+        800
+      ],
+      "webhookId": "c1000000-0000-4000-8000-000000000011",
+      "credentials": {
+        "telegramApi": {
+          "id": "x4DYvjKMmwyKB2S3",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Input Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Input Prompt": {
+      "main": [
+        [
+          {
+            "node": "Kirim Prompt (POST)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Kirim Prompt (POST)": {
+      "main": [
+        [
+          {
+            "node": "Wait 10 Detik",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 10 Detik": {
+      "main": [
+        [
+          {
+            "node": "Cek Status (GET)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cek Status (GET)": {
+      "main": [
+        [
+          {
+            "node": "IF Status Success?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Status Success?": {
+      "main": [
+        [
+          {
+            "node": "Code Ekstrak URL",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "IF Status Gagal?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF Status Gagal?": {
+      "main": [
+        [
+          {
+            "node": "Stop dan Error",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait 10 Detik",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code Ekstrak URL": {
+      "main": [
+        [
+          {
+            "node": "Download Gambar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Gambar": {
+      "main": [
+        [
+          {
+            "node": "Kirim ke Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "fbcb82d6-bcef-4657-a0a8-ee2f27d8e97c",
+  "meta": {
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "zcpxZxa29dBHYtEH",
+  "tags": []
+}
