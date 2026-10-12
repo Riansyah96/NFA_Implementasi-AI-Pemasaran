@@ -1,0 +1,269 @@
+{
+  "name": "Auto Posting Scheduler - Tugas 4",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "id": "8556cbb0-7653-4950-bc13-385fd9359bd3",
+      "name": "Schedule Trigger1",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        1472,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1FbSyeH3rJoOMznC2rJ1NNC7qtTO9Vs-xQfcIn2IJiFw",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "options": {
+          "returnFirstMatch": false
+        }
+      },
+      "id": "b7787fcd-adbc-4826-bbb0-f31d6b15e499",
+      "name": "Google Sheets - Get Rows1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1696,
+        -16
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8DtHFTKjIWMp5G1p",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const output = [];\nconst now = DateTime.now().setZone('Asia/Jakarta');\n\nfor (const item of $input.all()) {\n  const data = item.json;\n  const status = data['Status'];\n  const scheduledDate = data['Scheduled Date'];\n  const scheduledTime = data['Scheduled Time'];\n\n  // Skip jika Status kosong atau bukan 'pending'\n  if (!status || status.toString().trim() === '' || status.toString().toLowerCase().trim() !== 'pending') {\n    continue;\n  }\n\n  if (!scheduledDate || !scheduledTime) continue;\n\n  const dateStr = scheduledDate.toString().trim();\n  const timeStr = scheduledTime.toString().trim();\n\n  // Coba dd/MM/yyyy DULU (karena locale Indonesia)\n  let scheduledDT = DateTime.fromFormat(`${dateStr} ${timeStr}`, 'dd/MM/yyyy H:mm:ss', { zone: 'Asia/Jakarta' });\n  if (!scheduledDT.isValid) {\n    scheduledDT = DateTime.fromFormat(`${dateStr} ${timeStr}`, 'dd/MM/yyyy HH:mm:ss', { zone: 'Asia/Jakarta' });\n  }\n  if (!scheduledDT.isValid) {\n    scheduledDT = DateTime.fromFormat(`${dateStr} ${timeStr}`, 'dd/MM/yyyy H:mm', { zone: 'Asia/Jakarta' });\n  }\n  if (!scheduledDT.isValid) {\n    scheduledDT = DateTime.fromFormat(`${dateStr} ${timeStr}`, 'MM/dd/yyyy H:mm:ss', { zone: 'Asia/Jakarta' });\n  }\n\n  if (!scheduledDT.isValid) continue;\n\n  if (scheduledDT <= now) {\n    output.push({\n      json: {\n        ...data,\n        row_number: data.row_number || item.json.row_number\n      }\n    });\n  }\n}\n\nreturn output;"
+      },
+      "id": "e84e14ce-d0c1-4318-bf48-4982ed6501a0",
+      "name": "Code - Filter by Scheduled Time (Luxon)1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "restore-row-number",
+              "name": "row_number",
+              "value": "={{ $json.row_number }}",
+              "type": "number"
+            },
+            {
+              "id": "keep-status",
+              "name": "Status",
+              "value": "={{ $json.Status }}",
+              "type": "string"
+            },
+            {
+              "id": "keep-id",
+              "name": "ID",
+              "value": "={{ $json.ID }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "56b65ccb-ddc5-468d-976d-5003e27e092b",
+      "name": "Edit Fields - Restore row_number1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2144,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1FbSyeH3rJoOMznC2rJ1NNC7qtTO9Vs-xQfcIn2IJiFw",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Sheet1",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": "={{ $json.row_number }}",
+            "Status": "Published"
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Content",
+              "displayName": "Content",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Scheduled Date",
+              "displayName": "Scheduled Date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Scheduled Time",
+              "displayName": "Scheduled Time",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "188759dc-63d0-4df8-b7d9-cab1e04ee5cf",
+      "name": "Google Sheets - Update Status to Published1",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        2352,
+        -16
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "8DtHFTKjIWMp5G1p",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger1": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Get Rows1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Sheets - Get Rows1": {
+      "main": [
+        [
+          {
+            "node": "Code - Filter by Scheduled Time (Luxon)1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Filter by Scheduled Time (Luxon)1": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields - Restore row_number1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields - Restore row_number1": {
+      "main": [
+        [
+          {
+            "node": "Google Sheets - Update Status to Published1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "0c40549f-72c2-4c33-af9b-c6e0a25e0133",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "ZZPvcIXkxKcUerEP",
+  "tags": []
+}
