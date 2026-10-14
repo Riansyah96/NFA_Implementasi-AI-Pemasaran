@@ -1,0 +1,412 @@
+{
+  "name": "Tugas 5 - Brand Monitoring SoV & Sentimen (Gemini) ke Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "id": "26180d5a-b1a2-467f-879d-249b2e83084b",
+      "name": "Google Gemini Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -168,
+        824
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "v3yn8imcq9Tsoh3l",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1",
+              "name": "brand_1",
+              "value": "Riansyah's Brand",
+              "type": "string"
+            },
+            {
+              "id": "a2",
+              "name": "brand_2",
+              "value": "Tokopedia",
+              "type": "string"
+            },
+            {
+              "id": "a3",
+              "name": "brand_3",
+              "value": "Shopee",
+              "type": "string"
+            },
+            {
+              "id": "a4",
+              "name": "gl",
+              "value": "id",
+              "type": "string"
+            },
+            {
+              "id": "a5",
+              "name": "hl",
+              "value": "id",
+              "type": "string"
+            },
+            {
+              "id": "a6",
+              "name": "periode",
+              "value": "qdr:m",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "522f2a70-8286-40d5-bf80-ad31b5d50b97",
+      "name": "Konfigurasi Brand1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1136,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "e8c24b75-2e79-4faa-83a2-d3df7e989a55",
+      "name": "Gabungkan Hasil1",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        -688,
+        576
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Konfigurasi Brand1').first().json;\nconst names = [cfg.brand_1, cfg.brand_2, cfg.brand_3];\nconst items = $input.all();\n\nconst brands = names.map(name => ({ name, total_articles: 0, mentions: 0, sov: 0, articles: [] }));\n\nitems.forEach((it, i) => {\n  const q = (it.json.searchParameters && it.json.searchParameters.q) || '';\n  let idx = names.findIndex(n => String(n).toLowerCase() === String(q).toLowerCase());\n  if (idx < 0) idx = i;\n  if (idx >= brands.length) return;\n\n  const news = it.json.news || [];\n  const b = brands[idx];\n  const key = String(names[idx]).toLowerCase();\n  b.total_articles = news.length;\n\n  news.forEach(n => {\n    const text = ((n.title || '') + ' ' + (n.snippet || '')).toLowerCase();\n    if (text.includes(key)) b.mentions++;\n    b.articles.push({\n      title: n.title || '',\n      snippet: n.snippet || '',\n      source: n.source || '',\n      date: n.date || '',\n      link: n.link || ''\n    });\n  });\n});\n\n// Share of Voice = mention brand / total mention semua brand x 100\nconst totalMentions = brands.reduce((s, b) => s + b.mentions, 0);\nbrands.forEach(b => {\n  b.sov = totalMentions ? Math.round((b.mentions / totalMentions) * 1000) / 10 : 0;\n});\n\n// Susun prompt untuk AI\nconst corpus = brands.map(b => {\n  const list = b.articles.slice(0, 15)\n    .map(a => `- [${a.source}, ${a.date}] ${a.title} :: ${a.snippet}`)\n    .join('\\n');\n  return `=== BRAND: ${b.name} (${b.mentions} mention) ===\\n${list || '(tidak ada berita)'}`;\n}).join('\\n\\n');\n\nconst prompt = `Kamu adalah analis reputasi brand dan PR senior. Analisis sentimen kumpulan berita berikut untuk ${brands.length} brand.\n\n${corpus}\n\nTugas:\n1. Untuk SETIAP brand, tentukan sentimen dominan (Positif/Netral/Negatif), persentase sentimen (positive_pct, neutral_pct, negative_pct, total 100), dan skor reputasi skala 1-10 (1 = sangat buruk, 10 = sangat baik).\n2. Tulis 2-3 tema utama pemberitaan tiap brand dan alasan singkat skor.\n3. Tulis ringkasan eksekutif (3-5 kalimat, Bahasa Indonesia) yang membandingkan semua brand, dan 3 rekomendasi strategis untuk brand pertama (${brands[0].name}).\n\nBalas HANYA dengan JSON valid tanpa markdown, dengan format:\n{\"brands\":[{\"name\":\"\",\"sentiment\":\"\",\"positive_pct\":0,\"neutral_pct\":0,\"negative_pct\":0,\"reputation_score\":0,\"key_themes\":[\"\",\"\"],\"reasoning\":\"\"}],\"executive_summary\":\"\",\"recommendations\":[\"\",\"\",\"\"]}`;\n\nreturn [{ json: { brands, totalMentions, prompt, generated_at: new Date().toISOString() } }];"
+      },
+      "id": "e20634e8-8348-4183-aa47-dffc521b4efd",
+      "name": "Hitung SoV1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -464,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const sov = $('Hitung SoV1').first().json;\nconst j = $input.first().json;\nlet raw = j.text || j.output || (j.content && j.content.parts && j.content.parts[0] && j.content.parts[0].text) || '{}';\nraw = raw.replace(/```json|```/g, '').trim();\n\nlet ai;\ntry { ai = JSON.parse(raw); }\ncatch (e) { ai = { brands: [], executive_summary: raw, recommendations: [] }; }\n\nconst esc = s => String(s == null ? '' : s)\n  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\"/g, '&quot;');\n\nconst rows = sov.brands.map((b, i) => {\n  const a = (ai.brands || []).find(x => String(x.name).toLowerCase() === b.name.toLowerCase()) || (ai.brands || [])[i] || {};\n  return {\n    name: b.name,\n    mentions: b.mentions,\n    sov: b.sov,\n    sentiment: a.sentiment || '-',\n    pos: a.positive_pct ?? 0,\n    neu: a.neutral_pct ?? 0,\n    neg: a.negative_pct ?? 0,\n    score: Number(a.reputation_score) || 0,\n    themes: a.key_themes || [],\n    reasoning: a.reasoning || ''\n  };\n});\n\nconst colors = ['#2563eb', '#f59e0b', '#10b981'];\nconst scoreColor = s => s >= 7 ? '#059669' : s >= 5 ? '#d97706' : '#dc2626';\nconst tanggal = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });\nconst leader = [...rows].sort((a, b) => b.sov - a.sov)[0];\n\nconst tableRows = rows.map((r, i) => `\n  <tr>\n    <td><b>${esc(r.name)}</b>${i === 0 ? ' <span class=\"tag\">Brand Anda</span>' : ''}</td>\n    <td class=\"c\">${r.mentions}</td>\n    <td>\n      <div class=\"bar\"><span style=\"width:${r.sov}%;background:${colors[i % 3]}\"></span></div>\n      <b>${r.sov}%</b>\n    </td>\n    <td class=\"c\">${esc(r.sentiment)}<br><small>+${r.pos}% / =${r.neu}% / -${r.neg}%</small></td>\n    <td class=\"c\"><span class=\"score\" style=\"background:${scoreColor(r.score)}\">${r.score}/10</span></td>\n  </tr>`).join('');\n\nconst detail = rows.map((r, i) => `\n  <div class=\"card\" style=\"border-left:5px solid ${colors[i % 3]}\">\n    <h3>${esc(r.name)} <small>Skor ${r.score}/10</small></h3>\n    <p><b>Tema utama:</b> ${r.themes.map(esc).join('; ') || '-'}</p>\n    <p>${esc(r.reasoning)}</p>\n  </div>`).join('');\n\nconst recs = (ai.recommendations || []).map(x => `<li>${esc(x)}</li>`).join('');\n\nconst html = `<!DOCTYPE html>\n<html lang=\"id\"><head><meta charset=\"UTF-8\">\n<style>\n  body{font-family:Arial,Helvetica,sans-serif;color:#1f2937;margin:0;padding:10px;font-size:13px}\n  .header{background:#1e3a8a;color:#fff;padding:24px;border-radius:8px}\n  .header h1{margin:0 0 4px;font-size:22px} .header p{margin:0;opacity:.85}\n  h2{color:#1e3a8a;border-bottom:2px solid #e5e7eb;padding-bottom:6px;margin-top:28px}\n  .summary{background:#eff6ff;border-left:5px solid #2563eb;padding:14px 16px;border-radius:6px;line-height:1.6}\n  .kpis{display:flex;gap:12px;margin-top:14px}\n  .kpi{flex:1;background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px;text-align:center}\n  .kpi b{display:block;font-size:20px;color:#1e3a8a}\n  table{width:100%;border-collapse:collapse;margin-top:10px}\n  th{background:#1e3a8a;color:#fff;padding:10px;text-align:left}\n  td{padding:10px;border-bottom:1px solid #e5e7eb;vertical-align:middle}\n  tr:nth-child(even) td{background:#f9fafb} .c{text-align:center}\n  .bar{background:#e5e7eb;border-radius:6px;height:10px;width:100%;margin-bottom:4px}\n  .bar span{display:block;height:10px;border-radius:6px}\n  .score{color:#fff;padding:4px 10px;border-radius:12px;font-weight:bold}\n  .tag{background:#dbeafe;color:#1d4ed8;font-size:10px;padding:2px 6px;border-radius:8px}\n  .card{background:#f9fafb;padding:10px 16px;margin:10px 0;border-radius:6px;page-break-inside:avoid}\n  .card h3{margin:4px 0} .card small{color:#6b7280;font-weight:normal}\n  .footer{margin-top:30px;text-align:center;color:#9ca3af;font-size:11px}\n</style></head><body>\n  <div class=\"header\">\n    <h1>Laporan Brand Monitoring &amp; Share of Voice</h1>\n    <p>Dibuat otomatis pada ${tanggal} &bull; Sumber: Serper News API &bull; Analisis: AI</p>\n  </div>\n\n  <h2>Ringkasan Eksekutif</h2>\n  <div class=\"summary\">${esc(ai.executive_summary)}</div>\n  <div class=\"kpis\">\n    <div class=\"kpi\"><b>${sov.totalMentions}</b>Total Mention</div>\n    <div class=\"kpi\"><b>${esc(leader.name)}</b>SoV Tertinggi (${leader.sov}%)</div>\n    <div class=\"kpi\"><b>${rows.length}</b>Brand Dianalisis</div>\n  </div>\n\n  <h2>Tabel Perbandingan</h2>\n  <table>\n    <tr><th>Brand</th><th class=\"c\">Mention</th><th>Share of Voice</th><th class=\"c\">Sentimen</th><th class=\"c\">Skor Reputasi</th></tr>\n    ${tableRows}\n  </table>\n\n  <h2>Detail Analisis per Brand</h2>\n  ${detail}\n\n  <h2>Rekomendasi Strategis</h2>\n  <ol>${recs}</ol>\n\n  <div class=\"footer\">Laporan otomatis dibuat dengan n8n &bull; ${tanggal}</div>\n</body></html>`;\n\nconst stamp = new Date().toISOString().slice(0, 10);\nconst caption = `Laporan Brand Monitoring (${tanggal})\\n` +\n  rows.map(r => `- ${r.name}: SoV ${r.sov}%, skor ${r.score}/10`).join('\\n');\n\nreturn [{ json: { html, filename: `Laporan_SoV_${stamp}.pdf`, caption } }];"
+      },
+      "id": "ed0d2ace-4f67-45a1-946f-64d3b185b3e9",
+      "name": "Bangun Laporan HTML1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        112,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.pdfshift.io/v3/convert/pdf",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ source: $json.html, format: 'A4', margin: '10mm' }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          },
+          "timeout": 120000
+        }
+      },
+      "id": "e5af6443-ee51-4572-8482-8d1839bbff1c",
+      "name": "PDFShift - HTML ke PDF1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        336,
+        592
+      ],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "XSHGyrxjYgSlsfor",
+          "name": "Unnamed credential"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "sendDocument",
+        "chatId": "7391328305",
+        "binaryData": true,
+        "additionalFields": {
+          "caption": "={{ $('Bangun Laporan HTML1').first().json.caption }}",
+          "fileName": "={{ $('Bangun Laporan HTML1').first().json.filename }}"
+        }
+      },
+      "id": "a6ebbb01-9ce2-4b79-9c50-9758c4427d32",
+      "name": "Kirim ke Telegram1",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        560,
+        592
+      ],
+      "webhookId": "5360f1d4-ec17-43b5-945a-7a7b6a11ea91",
+      "credentials": {
+        "telegramApi": {
+          "id": "x4DYvjKMmwyKB2S3",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Kamu analis reputasi brand dan PR senior. Selalu balas HANYA dengan JSON valid tanpa markdown."
+            }
+          ]
+        }
+      },
+      "id": "54d816b7-23b3-45b1-a242-d1a3a3404fcd",
+      "name": "AI Analisis Sentimen1",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.5,
+      "position": [
+        -240,
+        592
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://google.serper.dev/news",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ q: $json.brand_1, gl: $json.gl, hl: $json.hl, num: 20, tbs: $json.periode }) }}",
+        "options": {}
+      },
+      "id": "252a36ce-55b9-4053-80e9-077c11e886ea",
+      "name": "Serper - Riansyah's Brand",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -912,
+        400
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "H7gvDzFfi942lvqw",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://google.serper.dev/news",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ q: $json.brand_2, gl: $json.gl, hl: $json.hl, num: 20, tbs: $json.periode }) }}",
+        "options": {}
+      },
+      "id": "1f663c41-df60-43db-b95e-eacbc367083c",
+      "name": "Serper - Tokopedia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -912,
+        592
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "H7gvDzFfi942lvqw",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://google.serper.dev/news",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ q: $json.brand_3, gl: $json.gl, hl: $json.hl, num: 20, tbs: $json.periode }) }}",
+        "options": {}
+      },
+      "id": "104c6150-7c65-4799-b870-1031a0add121",
+      "name": "Serper - Shopee",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -912,
+        784
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "H7gvDzFfi942lvqw",
+          "name": "Header Auth account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Analisis Sentimen1",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Konfigurasi Brand1": {
+      "main": [
+        [
+          {
+            "node": "Serper - Riansyah's Brand",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Serper - Tokopedia",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Serper - Shopee",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gabungkan Hasil1": {
+      "main": [
+        [
+          {
+            "node": "Hitung SoV1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hitung SoV1": {
+      "main": [
+        [
+          {
+            "node": "AI Analisis Sentimen1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bangun Laporan HTML1": {
+      "main": [
+        [
+          {
+            "node": "PDFShift - HTML ke PDF1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDFShift - HTML ke PDF1": {
+      "main": [
+        [
+          {
+            "node": "Kirim ke Telegram1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Analisis Sentimen1": {
+      "main": [
+        [
+          {
+            "node": "Bangun Laporan HTML1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Serper - Riansyah's Brand": {
+      "main": [
+        [
+          {
+            "node": "Gabungkan Hasil1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Serper - Tokopedia": {
+      "main": [
+        [
+          {
+            "node": "Gabungkan Hasil1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Serper - Shopee": {
+      "main": [
+        [
+          {
+            "node": "Gabungkan Hasil1",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "57d77769-4ecc-4865-a3c0-4e718bfe76b2",
+  "meta": {
+    "instanceId": "dc96f10ae7dc95d3c138575ba243a0a167923dbcb524841d451aadf9135d5fb3"
+  },
+  "nodeGroups": [],
+  "id": "WzrbplLX4WN7lCkz",
+  "tags": []
+}
